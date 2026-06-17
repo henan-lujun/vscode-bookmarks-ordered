@@ -11,7 +11,7 @@ import { BookmarksSocialMediaProvider, BookmarksContentProvider } from "./conten
 export async function registerWhatsNew() {
     const provider = new BookmarksContentProvider();
     const viewer = new WhatsNewManager(Container.context)
-        .registerContentProvider("alefragnani", "bookmarks-ordered", provider)
+        .registerContentProvider("henan-lujun", "bookmarks-ordered", provider)
         .registerSocialMediaProvider(new BookmarksSocialMediaProvider());
     await viewer.showPageInActivation();
     Container.context.subscriptions.push(commands.registerCommand("bookmarks.whatsNew", () => viewer.showPage()));

@@ -493,7 +493,7 @@ export class BookmarksContentProvider implements ContentProvider {
         const supportChannels: SupportChannel[] = [];
         supportChannels.push({
             title: "Become a sponsor on GitHub",
-            link: "https://github.com/sponsors/alefragnani",
+            link: "https://github.com/sponsors/henan-lujun",
             message: "Become a Sponsor"
         });
         supportChannels.push({
@@ -509,7 +509,7 @@ export class BookmarksSocialMediaProvider implements SocialMediaProvider {
     public provideSocialMedias() {
         return [{
             title: "Follow me on Twitter",
-            link: "https://www.twitter.com/alefragnani"
+            link: "https://www.twitter.com/henan_lujun"
         }];
     }
 }

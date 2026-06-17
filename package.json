@@ -2,8 +2,8 @@
     "name": "bookmarks-ordered",
     "displayName": "Bookmarks Ordered",
     "description": "Mark lines and jump to them",
-    "version": "1.0.0",
-    "publisher": "alefragnani",
+    "version": "0.1.0",
+    "publisher": "henan-lujun",
     "engines": {
         "vscode": "^1.78.0"
     },
@@ -31,16 +31,16 @@
     },
     "icon": "images/icon.png",
     "license": "GPL-3.0",
-    "homepage": "https://github.com/alefragnani/vscode-bookmarks/blob/master/README.md",
+    "homepage": "https://github.com/henan-lujun/vscode-bookmarks-ordered/blob/master/README.md",
     "repository": {
         "type": "git",
-        "url": "https://github.com/alefragnani/vscode-bookmarks.git"
+        "url": "https://github.com/henan-lujun/vscode-bookmarks-ordered.git"
     },
     "bugs": {
-        "url": "https://github.com/alefragnani/vscode-bookmarks/issues"
+        "url": "https://github.com/henan-lujun/vscode-bookmarks-ordered/issues"
     },
     "sponsor": {
-        "url": "https://github.com/sponsors/alefragnani"
+        "url": "https://github.com/sponsors/henan-lujun"
     },
     "activationEvents": [
         "onStartupFinished"
@@ -469,7 +469,7 @@
                 {
                     "command": "_bookmarks.whatsNewContextMenu",
                     "group": "bookmarks",
-                    "when": "extension == alefragnani.bookmarks && extensionStatus == installed"
+                    "when": "extension == henan-lujun.bookmarks-ordered && extensionStatus == installed"
                 }
             ],
             "bookmarks.editor.context": [
