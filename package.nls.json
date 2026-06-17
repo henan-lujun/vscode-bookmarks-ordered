@@ -42,6 +42,8 @@
     "bookmarks.commands.openFolderWelcome.title": "Open Folder",
     "bookmarks.commands.supportBookmarks.title": "Support Bookmarks",
     "bookmarks.commands.openSideBar.title": "Open Side Bar",
+    "bookmarks.commands.sortByLine.title": "Sort by Line",
+    "bookmarks.commands.sortByLabel.title": "Sort by Label",
     "bookmarks.commands.export.title": "Export",
     "bookmarks.configuration.title": "Bookmarks",
     "bookmarks.configuration.saveBookmarksInProject.description": "Allow bookmarks to be saved (and restored) locally in the opened Project/Folder instead of VS Code",

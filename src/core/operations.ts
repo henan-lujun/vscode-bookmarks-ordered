@@ -6,9 +6,19 @@
 import { Position, Uri, workspace, WorkspaceFolder } from "vscode";
 import { codicons } from "vscode-ext-codicons";
 import { Bookmark, BookmarkQuickPickItem } from "./bookmark";
-import { Directions, NO_BOOKMARKS, NO_BOOKMARKS_AFTER, NO_BOOKMARKS_BEFORE, NO_MORE_BOOKMARKS } from "./constants";
+import { Directions, NO_BOOKMARKS, NO_BOOKMARKS_AFTER, NO_BOOKMARKS_BEFORE, NO_MORE_BOOKMARKS, SortBy } from "./constants";
 import { File } from "./file";
+import { Controller } from "./controller";
 import { uriExists, uriWith } from "../utils/fs";
+import { getDisplayText, compareByDisplayText } from "./sortOperations";
+
+export interface SortedBookmarkItem {
+    file: File;
+    bookmark: Bookmark;
+    displayText: string;
+    controller: Controller;
+    lineContent?: string;
+}
 
 export function nextBookmark(file: File, currentPosition: Position, direction: Directions): Promise<number | Position> {
     return new Promise((resolve, reject) => {
@@ -196,4 +206,67 @@ export function sortBookmarks(file: File): void {
         }
         return 0;
     });
+}
+
+// ── Display text and sorting functions (re-exported from sortOperations) ──
+
+export { getDisplayText, compareByDisplayText, sortBookmarksByLabel } from "./sortOperations";
+
+/**
+ * Get the sort locale from VS Code configuration.
+ * Returns undefined (system default) when the configuration is empty.
+ */
+export function getSortLocale(): string | undefined {
+    const configuredLocale = workspace.getConfiguration("bookmarks")
+        .get<string>("sortByLocale", "");
+    return configuredLocale || undefined;
+}
+
+export interface SortedBookmarkItem {
+    file: File;
+    bookmark: Bookmark;
+    displayText: string;
+    controller: Controller;
+    lineContent?: string;
+}
+
+/**
+ * Get a globally sorted list of all bookmarks across all controllers.
+ * Returns an array of SortedBookmarkItem sorted by display text.
+ */
+export function getGlobalSortedBookmarks(controllers: Controller[], sortBy: SortBy): SortedBookmarkItem[] {
+    const items: SortedBookmarkItem[] = [];
+
+    for (const controller of controllers) {
+        for (const file of controller.files) {
+            for (const bookmark of file.bookmarks) {
+                const displayText = getDisplayText(bookmark);
+                items.push({
+                    file,
+                    bookmark,
+                    displayText,
+                    controller,
+                    lineContent: undefined, // will be resolved at display time
+                });
+            }
+        }
+    }
+
+    if (sortBy === SortBy.Label) {
+        const locale = getSortLocale();
+        items.sort((a, b) => {
+            const cmp = compareByDisplayText(a.displayText, b.displayText, locale);
+            if (cmp !== 0) { return cmp; }
+            return a.bookmark.line - b.bookmark.line;
+        });
+    } else {
+        // Line sort — existing behavior: by file then by line number
+        items.sort((a, b) => {
+            const pathCmp = a.file.path.localeCompare(b.file.path);
+            if (pathCmp !== 0) { return pathCmp; }
+            return a.bookmark.line - b.bookmark.line;
+        });
+    }
+
+    return items;
 }

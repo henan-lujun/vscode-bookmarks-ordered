@@ -10,7 +10,7 @@ import { Uri, WorkspaceFolder } from "vscode";
 import { Directions, NO_BOOKMARKS_AFTER, NO_BOOKMARKS_BEFORE, NO_MORE_BOOKMARKS, UNTITLED_SCHEME } from "./constants";
 import { createFile, File } from "./file";
 import { getFileUri, getRelativePath, uriExists } from "../utils/fs";
-import { clear, getLinePreview, indexOfBookmark } from "./operations";
+import { clear, getLinePreview, indexOfBookmark, getDisplayText } from "./operations";
 import { updateLinesWithBookmarkContext } from "../gutter/editorLineNumberContext";
 
 interface BookmarkAdded {
@@ -553,5 +553,41 @@ export class Controller {
 
     public getFileUri(file: File): Uri {
         return getFileUri(file, this.workspaceFolder);
+    }
+
+    /**
+     * Check if a display text already exists across all controllers.
+     * Returns the existing bookmark info if duplicate, undefined otherwise.
+     * @param displayText - the display text to check
+     * @param allControllers - all controllers to check against
+     * @param excludeFile - optional file to exclude from check (for self-exclusion)
+     * @param excludeLine - optional line to exclude from check
+     */
+    public static checkDisplayTextDuplicate(
+        displayText: string,
+        allControllers: Controller[],
+        excludeFile?: File,
+        excludeLine?: number
+    ): { file: File; bookmark: { line: number; column: number; label?: string } } | undefined {
+        if (!displayText || displayText.trim() === "") {
+            return undefined;
+        }
+        for (const ctrl of allControllers) {
+            for (const file of ctrl.files) {
+                for (const bm of file.bookmarks) {
+                    // Skip self
+                    if (excludeFile && excludeLine !== undefined &&
+                        file.path === excludeFile.path && bm.line === excludeLine) {
+                        continue;
+                    }
+                    const bmDisplayText = getDisplayText(bm);
+                    // Compare using localeCompare with sensitivity: 'base'
+                    if (displayText.localeCompare(bmDisplayText, undefined, { sensitivity: 'base' }) === 0) {
+                        return { file, bookmark: bm };
+                    }
+                }
+            }
+        }
+        return undefined;
     }
 }

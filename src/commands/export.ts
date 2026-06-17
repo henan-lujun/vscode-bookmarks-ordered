@@ -6,6 +6,7 @@
 import { commands, l10n, Uri, window, workspace } from "vscode";
 import { Container } from "../core/container";
 import { Controller } from "../core/controller";
+import { SortBy } from "../core/constants";
 import { getRelativePath, uriExists, uriWith } from "../utils/fs";
 import { getLinePreview } from "../core/operations";
 
@@ -81,13 +82,28 @@ async function collectBookmarks(controllers: Controller[]): Promise<BookmarkExpo
         }
     }
 
-    // Sort by file path, then by line number
-    bookmarkItems.sort((a, b) => {
-        if (a.file !== b.file) {
-            return a.file.localeCompare(b.file);
-        }
-        return a.line - b.line;
-    });
+    // Sort according to current sort mode (task 8.1)
+    const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
+    if (sortBy === SortBy.Label) {
+        bookmarkItems.sort((a, b) => {
+            const displayA = a.label || a.content;
+            const displayB = b.label || b.content;
+            const cmp = displayA.localeCompare(displayB, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) { return cmp; }
+            // Secondary sort: file path then line number
+            if (a.file !== b.file) {
+                return a.file.localeCompare(b.file);
+            }
+            return a.line - b.line;
+        });
+    } else {
+        bookmarkItems.sort((a, b) => {
+            if (a.file !== b.file) {
+                return a.file.localeCompare(b.file);
+            }
+            return a.line - b.line;
+        });
+    }
 
     return bookmarkItems;
 }

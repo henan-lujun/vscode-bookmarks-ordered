@@ -8,13 +8,14 @@ import * as vscode from "vscode";
 import { Controller } from "../core/controller";
 import { parsePosition, Point } from "./parser";
 import { codicons } from "vscode-ext-codicons";
-import { listBookmarks } from "../core/operations";
+import { listBookmarks, getGlobalSortedBookmarks } from "../core/operations";
+import { compareByDisplayText } from "../core/sortOperations";
 import { Container } from "../core/container";
 import { FileNode } from "./fileNode";
 import { BookmarkNode, BookmarkPreview } from "./bookmarkNode";
 import { WorkspaceNode } from "./workspaceNode";
 import { BookmarkNodeKind } from "./nodes";
-import { BadgeConfig } from "../core/constants";
+import { BadgeConfig, SortBy } from "../core/constants";
 
 export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | WorkspaceNode | FileNode> {
 
@@ -262,8 +263,21 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
                     const ne = <BookmarkNode>element;
 
                     const hidePosition = Container.context.globalState.get<boolean>("bookmarks.sidebar.hidePosition", false);
+                    const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
 
-                    for (const bbb of ne.books) {
+                    // Sort by label within file group (task 4.3)
+                    const books = [...ne.books];
+                    if (sortBy === SortBy.Label) {
+                        books.sort((a, b) => {
+                            const displayA = a.preview.replace(/^✎\s*/, "");
+                            const displayB = b.preview.replace(/^✎\s*/, "");
+                            const cmp = compareByDisplayText(displayA, displayB);
+                            if (cmp !== 0) { return cmp; }
+                            return a.line - b.line;
+                        });
+                    }
+
+                    for (const bbb of books) {
                         ll.push(new BookmarkNode(bbb.preview, !hidePosition ? `(Ln ${bbb.line}, Col ${bbb.column})` : undefined, vscode.TreeItemCollapsibleState.None, BookmarkNodeKind.NODE_BOOKMARK, null, [], {
                             command: "_bookmarks.jumpTo",
                             title: "",
@@ -279,8 +293,9 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
 
                 //
                 const viewAsList = Container.context.globalState.get<boolean>("viewAsList", false);
+                const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
 
-                // has more than one controller/worskpace and View As TREE, just loop through the controllers and returns its workspaces
+                // has more than one controller/workspace and View As TREE, just loop through the controllers and returns its workspaces
                 if (this.controllers.length > 1 && !viewAsList) {
                     const workspaces = [];
                     for (const controller of this.controllers) {
@@ -289,6 +304,33 @@ export class BookmarkProvider implements vscode.TreeDataProvider<BookmarkNode | 
                         workspaces.push(wn);
                     }
                     resolve(workspaces);
+                    return;
+                }
+
+                // List view + Label sort → global flat list (task 4.1)
+                if (viewAsList && sortBy === SortBy.Label) {
+                    const globalSorted = getGlobalSortedBookmarks(this.controllers, SortBy.Label);
+                    const hidePosition = Container.context.globalState.get<boolean>("bookmarks.sidebar.hidePosition", false);
+                    const bookmarkNodes: BookmarkNode[] = [];
+                    for (const item of globalSorted) {
+                        const preview = item.bookmark.label
+                            ? "✎ " + item.bookmark.label
+                            : item.displayText;
+                        bookmarkNodes.push(new BookmarkNode(
+                            preview,
+                            !hidePosition ? `(Ln ${item.bookmark.line + 1}, Col ${item.bookmark.column + 1})` : undefined,
+                            vscode.TreeItemCollapsibleState.None,
+                            BookmarkNodeKind.NODE_BOOKMARK,
+                            null,
+                            [],
+                            {
+                                command: "_bookmarks.jumpTo",
+                                title: "",
+                                arguments: [item.file.path, item.bookmark.line + 1, item.bookmark.column + 1, item.controller.getFileUri(item.file)],
+                            }
+                        ));
+                    }
+                    resolve(bookmarkNodes);
                     return;
                 }
 

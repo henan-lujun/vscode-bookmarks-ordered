@@ -29,3 +29,8 @@ export const WORKSPACE_ROOTPATH  = "$ROOTPATH$";
 
 export const DEFAULT_GUTTER_ICON_FILL_COLOR = "#157EFB";
 export const DEFAULT_GUTTER_ICON_BORDER_COLOR = "#157EFB";
+
+export enum SortBy {
+    Line = "line",
+    Label = "label"
+}

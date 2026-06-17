@@ -166,6 +166,16 @@
                 "enablement": "!bookmarks.viewAsList"
             },
             {
+                "command": "bookmarks.sortByLine",
+                "title": "%bookmarks.commands.sortByLine.title%",
+                "category": "%bookmarks.commands.category.bookmarks%"
+            },
+            {
+                "command": "bookmarks.sortByLabel",
+                "title": "%bookmarks.commands.sortByLabel.title%",
+                "category": "%bookmarks.commands.category.bookmarks%"
+            },
+            {
                 "command": "bookmarks.openSettings",
                 "title": "%bookmarks.commands.openSettings.title%"
             },
@@ -392,6 +402,16 @@
                     "group": "navigation@10"
                 },
                 {
+                    "command": "bookmarks.sortByLine",
+                    "when": "view == bookmarksExplorer && bookmarks.sortBy == label",
+                    "group": "navigation@12"
+                },
+                {
+                    "command": "bookmarks.sortByLabel",
+                    "when": "view == bookmarksExplorer && bookmarks.sortBy == line",
+                    "group": "navigation@12"
+                },
+                {
                     "submenu": "bookmarks.sideBar.title",
                     "when": "view == bookmarksExplorer",
                     "group": "1_bookmarks"
@@ -494,6 +514,14 @@
                 {
                     "command": "_bookmarks.viewAsList#sideBar",
                     "group": "bookmarks#sideBar.view@2"
+                },
+                {
+                    "command": "bookmarks.sortByLine",
+                    "group": "bookmarks#sideBar.sort@1"
+                },
+                {
+                    "command": "bookmarks.sortByLabel",
+                    "group": "bookmarks#sideBar.sort@2"
                 }
             ]
         },
@@ -691,6 +719,11 @@
                         "%bookmarks.configuration.confirmClear.enumDescriptions.commandPalette%",
                         "%bookmarks.configuration.confirmClear.enumDescriptions.sideBar%"
                     ]
+                },
+                "bookmarks.sortByLocale": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Locale for display text sorting. Empty = use system default. Examples: 'zh-CN', 'en', 'ja', 'de'"
                 },
                 "bookmarks.label.inline.enabled": {
                     "type": "boolean",

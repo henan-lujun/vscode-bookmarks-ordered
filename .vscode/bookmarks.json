@@ -1,19 +1,38 @@
 {
-	"bookmarks": [
+	"files": [
 		{
-			"fsPath": "$ROOTPATH$\\Bookmarks.ts",
+			"path": "src/core/constants.ts",
 			"bookmarks": [
-				41
+				{
+					"line": 17,
+					"column": 0,
+					"label": "02 aaabc"
+				},
+				{
+					"line": 27,
+					"column": 0,
+					"label": "01 first call"
+				}
 			]
 		},
 		{
-			"fsPath": "$ROOTPATH$\\extension.ts",
+			"path": "src/core/container.ts",
 			"bookmarks": [
-				112,
-				675,
-				701,
-				795,
-				800
+				{
+					"line": 14,
+					"column": 0,
+					"label": "03 dddddd"
+				}
+			]
+		},
+		{
+			"path": "src/core/sortOperations.ts",
+			"bookmarks": [
+				{
+					"line": 16,
+					"column": 0,
+					"label": "04 getDisplayText"
+				}
 			]
 		}
 	]

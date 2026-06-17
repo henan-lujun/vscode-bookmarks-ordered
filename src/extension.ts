@@ -13,7 +13,7 @@ import { Container } from "./core/container";
 import { createBookmarkDecorations, createBookmarkLabelInlineDecoration, updateDecorationsInActiveEditor } from "./decoration/decoration";
 import { File } from "./core/file";
 import { Controller } from "./core/controller";
-import { indexOfBookmark, listBookmarks, nextBookmark, sortBookmarks } from "./core/operations";
+import { indexOfBookmark, listBookmarks, nextBookmark, sortBookmarks, getGlobalSortedBookmarks, getDisplayText } from "./core/operations";
 import { loadBookmarks, saveBookmarks } from "./storage/workspaceState";
 import { pickController } from "./quickpick/controllerPicker";
 import { expandSelectionToNextBookmark, selectBookmarkedLines, shrinkSelection } from "./selections";
@@ -29,6 +29,7 @@ import { registerSupportBookmarks } from "./commands/supportBookmarks";
 import { registerExport } from "./commands/export";
 import { registerHelpAndFeedbackView } from "./sidebar/helpAndFeedbackView";
 import { registerWhatsNew } from "./whats-new/commands";
+import { SortBy } from "./core/constants";
 import { ViewAs } from "./sidebar/nodes";
 import { Selection } from "vscode";
 import { EditorLineNumberContextParams, updateLinesWithBookmarkContext } from "./gutter/editorLineNumberContext";
@@ -172,6 +173,10 @@ export async function activate(context: vscode.ExtensionContext) {
         if (cfg.affectsConfiguration("bookmarks.sideBar.hideWelcome")) {
             toggleSideBarWelcomeVisibility();
         }
+
+        if (cfg.affectsConfiguration("bookmarks.sortByLocale")) {
+            bookmarkProvider.refresh();
+        }
     }));
 
     let bookmarkDecorationType = createBookmarkDecorations();
@@ -226,6 +231,17 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand("setContext", "bookmarks.viewAsList", false);
         }
         Container.context.globalState.update("viewAsList", view === ViewAs.VIEW_AS_LIST);
+        bookmarkProvider.refresh();
+    }
+
+    // SortBy context (task 1.2)
+    const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
+    vscode.commands.executeCommand("setContext", "bookmarks.sortBy", sortBy);
+    vscode.commands.registerCommand("bookmarks.sortByLine", () => toggleSortBy(SortBy.Line));
+    vscode.commands.registerCommand("bookmarks.sortByLabel", () => toggleSortBy(SortBy.Label));
+    function toggleSortBy(sort: SortBy) {
+        vscode.commands.executeCommand("setContext", "bookmarks.sortBy", sort);
+        Container.context.globalState.update("sortBy", sort);
         bookmarkProvider.refresh();
     }
 
@@ -531,24 +547,46 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // push the items
         const items: vscode.QuickPickItem[] = [];
+        const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
+
+        // Build items with display text
+        interface ItemWithSort extends vscode.QuickPickItem {
+            _sortKey: string;
+        }
+        const rawItems: ItemWithSort[] = [];
         for (let index = 0; index < activeController.activeFile.bookmarks.length; index++) {
 
             const bookmarkLine = activeController.activeFile.bookmarks[ index ].line + 1;
             const bookmarkColumn = activeController.activeFile.bookmarks[ index ].column + 1;
             const lineText = vscode.window.activeTextEditor.document.lineAt(bookmarkLine - 1).text.trim();
+            const bookmark = activeController.activeFile.bookmarks[ index ];
 
-            if (activeController.activeFile.bookmarks[ index ].label === "") {
-                items.push({
+            if (bookmark.label === "") {
+                rawItems.push({
                     description: "(Ln " + bookmarkLine.toString() + ", Col " +
-                        bookmarkColumn.toString() + ")", label: lineText
+                        bookmarkColumn.toString() + ")", label: lineText,
+                    _sortKey: lineText
                 });
             } else {
-                items.push({
+                rawItems.push({
                     description: "(Ln " + bookmarkLine.toString() + ", Col " +
                         bookmarkColumn.toString() + ")",
-                    label: codicons.tag + " " + activeController.activeFile.bookmarks[ index ].label
+                    label: codicons.tag + " " + bookmark.label,
+                    _sortKey: bookmark.label
                 });
             }
+        }
+
+        // Sort by display text if label sort mode (task 6.1)
+        if (sortBy === SortBy.Label) {
+            rawItems.sort((a, b) => a._sortKey.localeCompare(b._sortKey, undefined, { numeric: true, sensitivity: 'base' }));
+        }
+
+        for (const ri of rawItems) {
+            items.push({
+                label: ri.label,
+                description: ri.description,
+            });
         }
 
         // pick one
@@ -716,49 +754,62 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
 
                 // sort
-                // - active document
-                // - no octicon - document in same workspaceFolder
-                // - with octicon 'file-submodules' - document in another workspaceFolder
-                // - with octicon - 'file-directory' - document outside any workspaceFolder
-                const itemsSorted: vscode.QuickPickItem[] = items.sort(function (a: vscode.QuickPickItem, b: vscode.QuickPickItem): number {
-                    if (!a.detail && !b.detail) {
+                const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
+
+                let itemsSorted: vscode.QuickPickItem[];
+                if (sortBy === SortBy.Label) {
+                    // Label sort mode: global sort by display text (task 6.2)
+                    itemsSorted = items.sort(function (a: vscode.QuickPickItem, b: vscode.QuickPickItem): number {
+                        const labelA = a.label.replace(codicons.tag + " ", "");
+                        const labelB = b.label.replace(codicons.tag + " ", "");
+                        return labelA.localeCompare(labelB, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                } else {
+                    // Line sort mode: existing behavior
+                    // - active document
+                    // - no octicon - document in same workspaceFolder
+                    // - with octicon 'file-submodules' - document in another workspaceFolder
+                    // - with octicon - 'file-directory' - document outside any workspaceFolder
+                    itemsSorted = items.sort(function (a: vscode.QuickPickItem, b: vscode.QuickPickItem): number {
+                        if (!a.detail && !b.detail) {
+                            return 0;
+                        }
+
+                        if (!a.detail && b.detail) {
+                            return -1;
+                        }
+
+                        if (a.detail && !b.detail) {
+                            return 1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === 0) && (b.detail.toString().indexOf(codicons.file_directory + " ") === 0)) {
+                            return -1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_directory + " ") === 0) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === 0)) {
+                            return 1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === 0) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === -1)) {
+                            return 1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === -1) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === 0)) {
+                            return -1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_directory + " ") === 0) && (b.detail.toString().indexOf(codicons.file_directory + " ") === -1)) {
+                            return 1;
+                        }
+
+                        if ((a.detail.toString().indexOf(codicons.file_directory + " ") === -1) && (b.detail.toString().indexOf(codicons.file_directory + " ") === 0)) {
+                            return -1;
+                        }
+
                         return 0;
-                    }
-
-                    if (!a.detail && b.detail) {
-                        return -1;
-                    }
-
-                    if (a.detail && !b.detail) {
-                        return 1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === 0) && (b.detail.toString().indexOf(codicons.file_directory + " ") === 0)) {
-                        return -1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_directory + " ") === 0) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === 0)) {
-                        return 1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === 0) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === -1)) {
-                        return 1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_submodule + " ") === -1) && (b.detail.toString().indexOf(codicons.file_submodule + " ") === 0)) {
-                        return -1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_directory + " ") === 0) && (b.detail.toString().indexOf(codicons.file_directory + " ") === -1)) {
-                        return 1;
-                    }
-
-                    if ((a.detail.toString().indexOf(codicons.file_directory + " ") === -1) && (b.detail.toString().indexOf(codicons.file_directory + " ") === 0)) {
-                        return -1;
-                    }
-
-                    return 0;
-                });
+                    });
+                }
 
                 const options = <vscode.QuickPickOptions>{
                     placeHolder: vscode.l10n.t("Type a line number or a piece of code to navigate to"),
@@ -825,7 +876,15 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // 
+        const sortBy = Container.context.globalState.get<SortBy>("sortBy", SortBy.Line);
+
+        // Label sort mode: navigate by global sorted list (tasks 5.1-5.5)
+        if (sortBy === SortBy.Label) {
+            navigateByLabelOrder(direction);
+            return;
+        }
+
+        // Line sort mode: existing behavior
         nextBookmark(activeController.activeFile, vscode.window.activeTextEditor.selection.active, direction)
             .then((next) => {
                 if (typeof next === "number") {
@@ -850,17 +909,11 @@ export async function activate(context: vscode.ExtensionContext) {
                                 uriDocument = <Uri>nextDocument;
                             }
 
-                            // same document?
-                            //   const activeDocument = getRelativePath(activeController.workspaceFolder?.uri?.path, vscode.window.activeTextEditor.document.uri.fsPath);
-                            //   if (nextDocument.toString() === activeDocument) {
                             if (uriDocument.fsPath === vscode.window.activeTextEditor.document.uri.fsPath) {
                                 const bookmarkIndex = direction === Directions.Forward ? 0 : activeController.activeFile.bookmarks.length - 1;
                                 revealPosition(activeController.activeFile.bookmarks[ bookmarkIndex ].line,
                                     activeController.activeFile.bookmarks[ bookmarkIndex ].column);
                             } else {
-                                // const uriDocument = !activeController.workspaceFolder
-                                //     ? Uri.file(nextDocument.toString())
-                                //     : appendPath(activeController.workspaceFolder.uri, nextDocument.toString());
                                 const tabGroupColumn = findTabGroupColumn(uriDocument, vscode.window.activeTextEditor.viewColumn);
 
                                 vscode.workspace.openTextDocument(uriDocument).then(doc => {
@@ -880,6 +933,95 @@ export async function activate(context: vscode.ExtensionContext) {
             .catch((error) => {
                 console.log("activeBookmark.nextBookmark REJECT" + error);
             });
+    }
+
+    function navigateByLabelOrder(direction: Directions) {
+        const globalSorted = getGlobalSortedBookmarks(controllers, SortBy.Label);
+
+        if (globalSorted.length === 0) {
+            return;
+        }
+
+        const currentUri = vscode.window.activeTextEditor.document.uri;
+        const currentLine = vscode.window.activeTextEditor.selection.active.line;
+
+        // Find current position in global sorted list
+        let currentIndex = -1;
+        for (let i = 0; i < globalSorted.length; i++) {
+            const item = globalSorted[i];
+            const itemUri = item.controller.getFileUri(item.file);
+            if (itemUri.fsPath === currentUri.fsPath && item.bookmark.line === currentLine) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        // If exact match not found, find nearest in same file
+        if (currentIndex === -1) {
+            let bestMatch = -1;
+            let bestDistance = Infinity;
+            for (let i = 0; i < globalSorted.length; i++) {
+                const item = globalSorted[i];
+                const itemUri = item.controller.getFileUri(item.file);
+                if (itemUri.fsPath === currentUri.fsPath) {
+                    const distance = Math.abs(item.bookmark.line - currentLine);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestMatch = i;
+                    }
+                }
+            }
+            if (bestMatch !== -1) {
+                currentIndex = bestMatch;
+            }
+        }
+
+        if (currentIndex === -1) {
+            // Not on any bookmarked line — start from first/last
+            currentIndex = direction === Directions.Forward ? -1 : globalSorted.length;
+        }
+
+        let targetIndex: number;
+        if (direction === Directions.Forward) {
+            targetIndex = currentIndex + 1;
+        } else {
+            targetIndex = currentIndex - 1;
+        }
+
+        const wrapNavigation: boolean = vscode.workspace.getConfiguration("bookmarks").get("wrapNavigation", true);
+
+        if (targetIndex >= globalSorted.length) {
+            if (!wrapNavigation) {
+                if (vscode.workspace.getConfiguration("bookmarks").get("showNoMoreBookmarksWarning", true)) {
+                    vscode.window.showInformationMessage(vscode.l10n.t("No more bookmarks"));
+                }
+                return;
+            }
+            targetIndex = 0;
+        }
+        if (targetIndex < 0) {
+            if (!wrapNavigation) {
+                if (vscode.workspace.getConfiguration("bookmarks").get("showNoMoreBookmarksWarning", true)) {
+                    vscode.window.showInformationMessage(vscode.l10n.t("No more bookmarks"));
+                }
+                return;
+            }
+            targetIndex = globalSorted.length - 1;
+        }
+
+        const target = globalSorted[targetIndex];
+        const targetUri = target.controller.getFileUri(target.file);
+
+        if (targetUri.fsPath === currentUri.fsPath) {
+            revealPosition(target.bookmark.line, target.bookmark.column);
+        } else {
+            const tabGroupColumn = findTabGroupColumn(targetUri, vscode.window.activeTextEditor.viewColumn);
+            vscode.workspace.openTextDocument(targetUri).then(doc => {
+                vscode.window.showTextDocument(doc, tabGroupColumn).then(() => {
+                    revealPosition(target.bookmark.line, target.bookmark.column);
+                });
+            });
+        }
     }
 
     function findTabGroupColumn(uri: Uri, column: ViewColumn): ViewColumn {
@@ -938,6 +1080,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage(vscode.l10n.t("You must define a label for the bookmark."));
                 return;
             }
+            // Uniqueness check (task 7.4)
+            const displayText = getDisplayText({ line: position.line, column: position.character, label: bookmarkLabel });
+            const duplicate = Controller.checkDisplayTextDuplicate(displayText, controllers, book, position.line);
+            if (duplicate && bookmarkLabel !== "" && bookmarkLabel !== undefined) {
+                vscode.window.showWarningMessage(vscode.l10n.t("A bookmark with the same display text already exists"));
+                return;
+            }
+
             if (index >= 0) {
                 activeController.removeBookmark(index, position.line, book);
             }
@@ -1016,12 +1166,14 @@ export async function activate(context: vscode.ExtensionContext) {
             selections.push(...vscode.window.activeTextEditor.selections);
         }
         // fix issue emptyAtLaunch
-        if (!activeController.activeFile) {
+        if (!activeController.activeFile && vscode.window.activeTextEditor) {
             activeController.addFile(vscode.window.activeTextEditor.document.uri);
             activeController.activeFile = activeController.fromUri(vscode.window.activeTextEditor.document.uri);
         }
 
-        let suggestion = suggestLabel(vscode.window.activeTextEditor.selection);
+        let suggestion = vscode.window.activeTextEditor
+            ? suggestLabel(vscode.window.activeTextEditor.selection)
+            : "";
         if (!params && suggestion !== "" && useSelectionWhenAvailable()) {
             if (await activeController.toggle(selections, suggestion)) {
                 vscode.window.showTextDocument(vscode.window.activeTextEditor.document, { preview: false, viewColumn: vscode.window.activeTextEditor.viewColumn });
@@ -1055,6 +1207,16 @@ export async function activate(context: vscode.ExtensionContext) {
         if (newLabel === "" && oldLabel === "") {
             vscode.window.showWarningMessage(vscode.l10n.t("You must define a label for the bookmark."));
             return;
+        }
+
+        // Uniqueness check (task 7.4)
+        if (newLabel && newLabel !== "") {
+            const displayText = getDisplayText({ line: selections[0].active.line, column: selections[0].active.character, label: newLabel });
+            const duplicate = Controller.checkDisplayTextDuplicate(displayText, controllers);
+            if (duplicate) {
+                vscode.window.showWarningMessage(vscode.l10n.t("A bookmark with the same display text already exists"));
+                return;
+            }
         }
 
         if (await activeController.toggle(selections, newLabel)) {

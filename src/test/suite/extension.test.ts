@@ -33,4 +33,36 @@ suite('Extension Test Suite', () => {
         await timeout(1500);
         assert.equal(extension.isActive, true);
     });
+
+    // ── Regression tests for sort-by-label (task 9.8) ──
+
+    test('Sort by line command is registered', async () => {
+        await extension.activate();
+        const commands = await vscode.commands.getCommands(true);
+        assert.ok(commands.includes('bookmarks.sortByLine'), 'bookmarks.sortByLine command should be registered');
+    });
+
+    test('Sort by label command is registered', async () => {
+        await extension.activate();
+        const commands = await vscode.commands.getCommands(true);
+        assert.ok(commands.includes('bookmarks.sortByLabel'), 'bookmarks.sortByLabel command should be registered');
+    });
+
+    test('Existing jumpToNext command is registered (regression)', async () => {
+        await extension.activate();
+        const commands = await vscode.commands.getCommands(true);
+        assert.ok(commands.includes('bookmarks.jumpToNext'), 'bookmarks.jumpToNext command should still be registered');
+    });
+
+    test('Existing list command is registered (regression)', async () => {
+        await extension.activate();
+        const commands = await vscode.commands.getCommands(true);
+        assert.ok(commands.includes('bookmarks.list'), 'bookmarks.list command should still be registered');
+    });
+
+    test('Existing listFromAllFiles command is registered (regression)', async () => {
+        await extension.activate();
+        const commands = await vscode.commands.getCommands(true);
+        assert.ok(commands.includes('bookmarks.listFromAllFiles'), 'bookmarks.listFromAllFiles command should still be registered');
+    });
 });
