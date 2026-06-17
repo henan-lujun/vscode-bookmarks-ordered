@@ -168,12 +168,14 @@
             {
                 "command": "bookmarks.sortByLine",
                 "title": "%bookmarks.commands.sortByLine.title%",
-                "category": "%bookmarks.commands.category.bookmarks%"
+                "category": "%bookmarks.commands.category.bookmarks%",
+                "icon": "$(list-ordered)"
             },
             {
                 "command": "bookmarks.sortByLabel",
                 "title": "%bookmarks.commands.sortByLabel.title%",
-                "category": "%bookmarks.commands.category.bookmarks%"
+                "category": "%bookmarks.commands.category.bookmarks%",
+                "icon": "$(whole-word)"
             },
             {
                 "command": "bookmarks.openSettings",
