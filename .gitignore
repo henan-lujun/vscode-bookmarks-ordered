@@ -6,3 +6,4 @@ issues
 .github/
 .claude/
 tmp/
+.DS_Store

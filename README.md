@@ -3,13 +3,30 @@
   <a title="Learn more about Bookmarks" href="http://github.com/alefragnani/vscode-bookmarks"><img src="https://raw.githubusercontent.com/alefragnani/vscode-bookmarks/master/images/vscode-bookmarks-logo-readme.png" alt="Bookmarks Logo" width="50%" /></a>
 </p>
 
-# What's new in Bookmarks 14.1
+# Bookmarks Ordered
 
-* Adds **Export** support
+**Bookmarks Ordered** is a fork of [Bookmarks 14.1](https://github.com/alefragnani/vscode-bookmarks) by Alessandro Fragnani. It keeps every feature of the original extension and adds the ability to **sort bookmarks by their display text** (label or line content), with cross-file global sorting and navigation that follows your chosen order.
+
+> **Current version: `0.1`**
+>
+> This is the first release of the fork. The sort-by-label feature is implemented as defined in [`openspec/changes/archive/2026-06-18-sort-by-label/proposal.md`](./openspec/changes/archive/2026-06-18-sort-by-label/proposal.md).
+
+## What's new in 0.1
+
+* **Sort by Label** — sort bookmarks by their display text (label, or line content when unlabeled) instead of by line number
+* **Cross-file global sorting** — in List view + Label sort, all bookmarks across every file are merged into one globally ordered list
+* **Navigate by sort order** — `Jump to Next` / `Jump to Previous` follow the current sort mode, including across files
+* **Sort mode toggle** — switch between *Sort by Line* and *Sort by Label* from the Side Bar title bar or the *View & Sort* submenu
+* **Display-text uniqueness check** — warns when a newly created bookmark would duplicate an existing display text
+* **Locale-aware sorting** — configurable via the new `bookmarks.sortByLocale` setting (`numeric: true`, `sensitivity: 'base'`)
+
+## Inherited from Bookmarks 14.1
+
+* **Export** support
 * Improved **Side Bar**
 * Improved **Labeled Bookmark**
 * Fully Open Source again
-* Adds **Persian**, **French**, **Hindi** and **Polish** translations
+* **Persian**, **French**, **Hindi** and **Polish** translations
 * Setting to customize overview ruler lane
 * Published to **Open VSX**
 
@@ -58,6 +75,8 @@ Here are some of the features that **Bookmarks** provides:
 * `Bookmarks: Clear` remove all bookmarks in the current file
 * `Bookmarks: Clear from All Files` remove all bookmarks from all files
 * `Bookmarks: Export` Export all bookmarks to a Markdown document with customizable format
+* `Bookmarks: Sort by Line` Switch to sorting bookmarks by line number (default)
+* `Bookmarks: Sort by Label` Switch to sorting bookmarks by display text (label, or line content when unlabeled)
 * `Bookmarks (Selection): Select Lines` Select all lines that contains bookmarks
 * `Bookmarks (Selection): Expand Selection to Next` Expand the selected text to the next bookmark
 * `Bookmarks (Selection): Expand Selection to Previous` Expand the selected text to the previous bookmark
@@ -167,6 +186,43 @@ Simple list:
 ```
 $file:$line - $label
 ```
+
+## Sort by Line / Sort by Label
+
+By default, bookmarks are sorted **by line number** — the original Bookmarks behavior, kept 100% intact. **Bookmarks Ordered** adds a second mode that sorts bookmarks by their **display text**: the bookmark's label when it has one, otherwise the (trimmed) line content.
+
+Switch between the two modes at any time:
+
+* From the Side Bar title bar buttons (next to the Tree/List toggle), or
+* From the **View & Sort** submenu → **Sort by Line** / **Sort by Label**, or
+* From the Command Palette → `Bookmarks: Sort by Line` / `Bookmarks: Sort by Label`.
+
+The active mode is remembered across sessions.
+
+### How display text is determined
+
+| Bookmark | Display text used for sorting |
+|----------|-------------------------------|
+| Has a non-empty label | The label |
+| No label | The trimmed line content |
+
+### Cross-file global sorting
+
+When the Side Bar is in **List view** and **Sort by Label** is active, bookmarks from **all files** (and all workspace folders in a multi-root workspace) are merged into a single, globally ordered list. In **Tree view**, bookmarks stay grouped by file/workspace, but each group is sorted by display text.
+
+### Navigate by sort order
+
+`Jump to Next` / `Jump to Previous` follow the active sort mode. In Label sort mode this means jumping through the global ordered list, moving across files automatically — ideal for working through a set of labeled bookmarks like `01 funcA`, `02 funcB`, … The `wrapNavigation` setting is honored in both modes.
+
+### Locale-aware comparison
+
+Sorting uses `String.localeCompare` with `numeric: true` (so `"2"` sorts before `"10"`) and `sensitivity: 'base'` (case- and accent-insensitive, so `"abc"`, `"ABC"` and `"ábc"` compare equal). When display texts are equal, line number is used as a tiebreaker for stable ordering.
+
+By default the **system locale** is used (e.g. pinyin ordering on a Chinese-locale system, alphabetic on an English-locale system). Override it with `bookmarks.sortByLocale`.
+
+### Display-text uniqueness
+
+When you create a bookmark (or edit a label) whose display text already exists, the extension warns you about the duplicate. Unlabeled bookmarks only warn — they are not blocked — since you don't control line content.
 
 ## Available Settings
 
@@ -327,6 +383,14 @@ $file:$line - $label
     "bookmarks.overviewRulerLane": "left"
 ```
 
+* Specifies the locale used when sorting bookmarks by display text. Empty = use the system default locale. Examples: `"zh-CN"`, `"en"`, `"ja"`, `"de"` _(`""` by default)_
+
+```json
+    "bookmarks.sortByLocale": "zh-CN"
+```
+
+> **Note:** The active sort mode (*line* / *label*) is **not** a VS Code setting — it is persisted in extension state (like the existing Tree/List toggle) and controlled via the `bookmarks.sortBy` context key for UI visibility. Use `Bookmarks: Sort by Line` / `Bookmarks: Sort by Label` to switch.
+
 * Specifies the export pattern for bookmarks. Use variables like `$file`, `$line`, `$column`, `$label`, and `$content` to customize the output format _(table format by default)_
 
 ```json
@@ -392,3 +456,5 @@ It also works even if you only _preview_ a file (simple click in TreeView). You 
 # License
 
 [GPL-3.0](LICENSE.md) &copy; Alessandro Fragnani
+
+**Bookmarks Ordered** is a fork of [Bookmarks](https://github.com/alefragnani/vscode-bookmarks) and is distributed under the same GPL-3.0 license. The sort-by-label feature is added on top of the original work.
